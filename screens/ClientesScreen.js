@@ -1,89 +1,384 @@
-import React from "react";
-import { View, Text, StyleSheet, Image } from "react-native";
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  FlatList,
+  Alert,
+  StyleSheet,
+  ScrollView,
+} from "react-native";
+
+import { getDatabase } from "../database";
 
 export default function ClientesScreen() {
+  const db = getDatabase();
+
+  const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
+  const [telefone, setTelefone] = useState("");
+
+  const [clientes, setClientes] = useState([]);
+  const [busca, setBusca] = useState("");
+
+  const [clienteEditando, setClienteEditando] = useState(null);
+
+  useEffect(() => {
+    carregarClientes();
+  }, []);
+
+  function carregarClientes() {
+    try {
+      const resultado = db.getAllSync(
+        "SELECT * FROM clientes ORDER BY id DESC",
+      );
+
+      setClientes(resultado);
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  function limparFormulario() {
+    setNome("");
+    setEmail("");
+    setTelefone("");
+    setClienteEditando(null);
+  }
+
+  function formatarTelefone(valor) {
+    let numero = valor.replace(/\D/g, "");
+
+    if (numero.length > 11) {
+      numero = numero.slice(0, 11);
+    }
+
+    if (numero.length <= 2) {
+      return numero;
+    }
+
+    if (numero.length <= 7) {
+      return `(${numero.slice(0, 2)}) ${numero.slice(2)}`;
+    }
+
+    return `(${numero.slice(0, 2)}) ${numero.slice(2, 7)}-${numero.slice(7)}`;
+  }
+
+  function salvarCliente() {
+    if (!nome.trim() || !email.trim() || !telefone.trim()) {
+      Alert.alert("Atenção", "Preencha nome, e-mail e telefone.");
+      return;
+    }
+
+    // Validação padrão de e-mail com formato Regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      Alert.alert("Atenção", "Por favor, insira um e-mail válido.");
+      return;
+    }
+
+    try {
+      if (clienteEditando) {
+        db.runSync(
+          `
+          UPDATE clientes
+          SET nome = ?, email = ?, telefone = ?
+          WHERE id = ?
+          `,
+          [nome, email, telefone, clienteEditando.id],
+        );
+
+        Alert.alert("Sucesso", "Cliente atualizado com sucesso.");
+      } else {
+        db.runSync(
+          `
+          INSERT INTO clientes
+          (nome, email, telefone)
+          VALUES (?, ?, ?)
+          `,
+          [nome, email, telefone],
+        );
+
+        Alert.alert("Sucesso", `Cliente ${nome} cadastrado.`);
+      }
+
+      limparFormulario();
+      carregarClientes();
+    } catch (error) {
+      console.log(error);
+
+      Alert.alert("Erro", "Não foi possível salvar.");
+    }
+  }
+
+  function editarCliente(cliente) {
+    setClienteEditando(cliente);
+
+    setNome(cliente.nome);
+    setEmail(cliente.email);
+    setTelefone(cliente.telefone);
+  }
+
+  function excluirCliente(id) {
+    Alert.alert("Excluir", "Deseja realmente excluir este cliente?", [
+      {
+        text: "Cancelar",
+        style: "cancel",
+      },
+      {
+        text: "Excluir",
+        style: "destructive",
+        onPress: () => {
+          try {
+            db.runSync("DELETE FROM clientes WHERE id = ?", [id]);
+
+            carregarClientes();
+
+            Alert.alert("Sucesso", "Cliente removido.");
+          } catch (error) {
+            console.log(error);
+          }
+        },
+      },
+    ]);
+  }
+
+  const clientesFiltrados = clientes.filter((cliente) => {
+    const textoBusca = busca.toLowerCase();
+
+    return (
+      cliente.nome.toLowerCase().includes(textoBusca) ||
+      cliente.email.toLowerCase().includes(textoBusca) ||
+      cliente.telefone.includes(textoBusca)
+    );
+  });
+
+  function renderCliente({ item }) {
+    // Identifica se este card específico está sendo editado pelo Admin
+    const estaEditando = clienteEditando && clienteEditando.id === item.id;
+
+    return (
+      <View style={[
+        styles.card, 
+        estaEditando && { borderColor: "#facc15", backgroundColor: "#1e294b" }
+      ]}>
+        <Text style={styles.nome}>
+          👤 {item.nome} {estaEditando && <Text style={{ color: "#facc15", fontSize: 12 }}> (Editando...)</Text>}
+        </Text>
+
+        <Text style={styles.info}>📧 {item.email}</Text>
+
+        <Text style={styles.info}>📞 {item.telefone}</Text>
+
+        <View style={styles.areaBotoes}>
+          <TouchableOpacity
+            style={styles.botaoEditar}
+            onPress={() => editarCliente(item)}
+          >
+            <Text style={styles.textoBotao}>Editar</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.botaoExcluir}
+            onPress={() => excluirCliente(item.id)}
+          >
+            <Text style={styles.textoBotao}>Excluir</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container}>
+      <Text style={styles.titulo}>Clientes Pixel Geek</Text>
 
-      {/* GIF de construção exibido no topo da tela */}
-      <Image
-        source={require("../assets/construindo.gif")}
-        style={styles.gif}
-      />
+      <View style={styles.formulario}>
+        <TextInput
+          style={styles.input}
+          placeholder="Nome"
+          placeholderTextColor="#cbd5e1"
+          value={nome}
+          onChangeText={setNome}
+        />
 
-      {/* Título principal da tela */}
-      <Text style={styles.titulo}>
-        Clientes
-      </Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          placeholderTextColor="#cbd5e1"
+          value={email}
+          onChangeText={setEmail}
+        />
 
-      {/* Card com as informações sobre a funcionalidade */}
-      <View style={styles.card}>
+        <TextInput
+          style={styles.input}
+          placeholder="Telefone"
+          placeholderTextColor="#cbd5e1"
+          value={telefone}
+          onChangeText={(texto) => setTelefone(formatarTelefone(texto))}
+        />
 
-        <Text style={styles.texto}>
-          Área destinada ao cadastro e gerenciamento de clientes.
-        </Text>
+        <TouchableOpacity style={styles.botaoSalvar} onPress={salvarCliente}>
+          <Text style={styles.textoBotao}>
+            {clienteEditando ? "Atualizar Cliente" : "Salvar Cliente"}
+          </Text>
+        </TouchableOpacity>
 
-        <Text style={styles.info}>
-          Em desenvolvimento...
-        </Text>
-
+        {clienteEditando && (
+          <TouchableOpacity
+            style={styles.botaoCancelar}
+            onPress={limparFormulario}
+          >
+            <Text style={styles.textoBotao}>Cancelar Edição</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-    </View>
+      <TextInput
+        style={styles.inputBusca}
+        placeholder="Buscar cliente..."
+        placeholderTextColor="#cbd5e1"
+        value={busca}
+        onChangeText={setBusca}
+      />
+
+      <Text style={styles.subtitulo}>Clientes Cadastrados</Text>
+
+      <FlatList
+        data={clientesFiltrados}
+        renderItem={renderCliente}
+        keyExtractor={(item) => item.id.toString()}
+        scrollEnabled={false}
+        ListEmptyComponent={
+          <Text style={styles.listaVaziaTexto}>🔍 Nenhum nerdola encontrado...</Text>
+        }
+      />
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-
-  // Container principal da tela
   container: {
-    flex: 1, // Ocupa toda a tela
-    alignItems: "center", // Centraliza os elementos horizontalmente
-    backgroundColor: "#0f172a", // Fundo escuro da identidade Pixel Geek
-    padding: 20, // Espaçamento interno da tela
-    paddingTop: 10, // Distância do topo da tela
+    flex: 1,
+    backgroundColor: "#0f172a",
   },
 
-  // Estilo do GIF de construção
-  gif: {
-    width: 240, // Largura do GIF
-    height: 320, // Altura do GIF
-    resizeMode: "contain", // Mantém a proporção do GIF
-    marginBottom: -10, // Aproxima o título do GIF
-  },
-
-  // Estilo do título "Clientes"
   titulo: {
-    fontSize: 30, // Tamanho maior para destacar o título
-    fontWeight: "bold", // Deixa o texto em negrito
-    color: "#facc15", // Dourado da identidade visual Pixel Geek
-    marginBottom: 20, // Espaço abaixo do título
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#facc15",
+    textAlign: "center",
+    marginTop: 20,
   },
 
-  // Cartão com informações sobre a tela
+  formulario: {
+    backgroundColor: "#1e293b",
+    margin: 20,
+    padding: 20,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: "#7c3aed",
+  },
+
+  input: {
+    borderWidth: 1,
+    borderColor: "#facc15",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    backgroundColor: "#0f172a",
+    color: "#fff",
+  },
+
+  inputBusca: {
+    borderWidth: 1,
+    borderColor: "#3b82f6",
+    borderRadius: 10,
+    padding: 12,
+    marginHorizontal: 20,
+    marginBottom: 15,
+    backgroundColor: "#1e293b",
+    color: "#fff",
+  },
+
+  botaoSalvar: {
+    backgroundColor: "#7c3aed",
+    padding: 15,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+
+  botaoCancelar: {
+    backgroundColor: "#475569",
+    padding: 15,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 10,
+  },
+
+  textoBotao: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
+
+  subtitulo: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#facc15",
+    marginHorizontal: 20,
+    marginBottom: 10,
+  },
+
   card: {
-    width: "100%", // Ocupa toda a largura disponível
-    backgroundColor: "#1e293b", // Fundo do card em azul escuro
-    padding: 25, // Espaçamento interno do conteúdo
-    borderRadius: 15, // Deixa os cantos arredondados
-    borderWidth: 1, // Cria uma borda ao redor do card
-    borderColor: "#7c3aed", // Roxo neon da identidade Pixel Geek
-    alignItems: "center", // Centraliza os textos dentro do card
+    backgroundColor: "#1e293b",
+    marginHorizontal: 20,
+    marginBottom: 15,
+    padding: 15,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: "#7c3aed",
   },
 
-  // Texto principal de descrição
-  texto: {
-    color: "#f8fafc", // Texto branco para facilitar a leitura
-    fontSize: 18, // Tamanho confortável para leitura
-    textAlign: "center", // Centraliza o texto
-    marginBottom: 15, // Espaço antes da próxima informação
+  nome: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#fff",
   },
 
-  // Texto indicando que a função ainda está sendo criada
   info: {
-    color: "#facc15", // Dourado para destacar o status da tela
-    fontSize: 16, // Tamanho menor que o texto principal
-    fontStyle: "italic", // Deixa o texto em itálico
+    color: "#cbd5e1",
+    marginTop: 5,
   },
 
+  areaBotoes: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 15,
+  },
+
+  botaoEditar: {
+    flex: 1,
+    backgroundColor: "#3b82f6",
+    padding: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+
+  botaoExcluir: {
+    flex: 1,
+    backgroundColor: "#dab10e",
+    padding: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+
+  listaVaziaTexto: {
+    color: '#cbd5e1',
+    textAlign: 'center',
+    marginTop: 20,
+    marginBottom: 30,
+    fontSize: 16,
+    fontStyle: 'italic'
+  },
 });

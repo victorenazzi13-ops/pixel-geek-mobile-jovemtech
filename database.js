@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
-const db = SQLite.openDatabaseSync('mydb.db');
+// Mudamos o nome para resetar o banco local no Expo Go e aplicar a nova estrutura
+const db = SQLite.openDatabaseSync('mydb_v2.db');
 
 export function initDatabase() {
     try {
@@ -16,8 +17,7 @@ export function initDatabase() {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT NOT NULL,
             email TEXT NOT NULL,
-            arquivo TEXT NOT NULL,
-            data_cadastro DATETIME DEFAULT CURRENT_TIMESTAMP
+            arquivo TEXT NOT NULL
         );
         `);
 
