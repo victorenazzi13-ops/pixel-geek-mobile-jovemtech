@@ -2,7 +2,10 @@ import "react-native-gesture-handler";
 import React, { useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { TouchableOpacity, Text } from "react-native"; // Importados para o funcionamento do Logout
 
+// IMPORTAÇÃO DAS TELAS
+import LoginScreen from "./screens/LoginScreen"; 
 import HomeScreen from "./screens/HomeScreen";
 import ClientesScreen from "./screens/ClientesScreen";
 import CurriculosScreen from "./screens/CurriculosScreen";
@@ -19,7 +22,7 @@ export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="Home"
+        initialRouteName="Login"
         screenOptions={{
           headerStyle: {
             backgroundColor: "#0f172a",
@@ -37,10 +40,30 @@ export default function App() {
           animation: "slide_from_right",
         }}
       >
+        {/* TELA DE LOGIN */}
+        <Stack.Screen
+          name="Login"
+          component={LoginScreen}
+          options={{ headerShown: false }}
+        />
+
+        {/* TELA HOME (COM BOTÃO DE LOGOUT NA BARRA SUPERIOR) */}
         <Stack.Screen
           name="Home"
           component={HomeScreen}
-          options={{ title: "Pixel Geek" }}
+          options={({ navigation }) => ({ 
+            title: "Pixel Geek",
+            headerRight: () => (
+              <TouchableOpacity 
+                onPress={() => {
+                  navigation.replace('Login');
+                }}
+                style={{ marginRight: 10 }}
+              >
+                <Text style={{ color: '#ef4444', fontWeight: 'bold', fontSize: 14 }}>Sair 🚪</Text>
+              </TouchableOpacity>
+            )
+          })}
         />
 
         <Stack.Screen
